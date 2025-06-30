@@ -1,0 +1,42 @@
+trigger:
+- main
+
+pool:
+  name: 'self-hosted-pool'
+
+variables:
+  ResourceGroupName: 'rg-23-6'
+  ServerName: 'studentserver9'
+  HubDatabase: 'studentDB1'
+  SyncGroupName: 'StudentSyncGroup'
+  MemberDatabase: 'studentDB2'
+
+steps:
+# 🔹 Register Sync Tables
+- task: AzurePowerShell@5
+  displayName: 'Register sync tables'
+  inputs:
+    azureSubscription: 'DevopsServiceConnection'
+    ScriptPath: 'register-sync-tables.ps1'
+    ScriptArguments: >
+      -ResourceGroupName $(ResourceGroupName)
+      -ServerName $(ServerName)
+      -HubDatabase $(HubDatabase)
+      -SyncGroupName $(SyncGroupName)
+      -TableNames "Students","ExamResults","Marks","Subjects","Courses","Departments","Hostels"
+    azurePowerShellVersion: 'LatestVersion'
+    pwsh: true
+
+# 🔹 Trigger manual sync
+- task: AzurePowerShell@5
+  displayName: 'Trigger sync'
+  inputs:
+    azureSubscription: 'DevopsServiceConnection'
+    ScriptPath: 'trigger-sync.ps1'
+    ScriptArguments: >
+      -ResourceGroupName $(ResourceGroupName)
+      -ServerName $(ServerName)
+      -DatabaseName $(HubDatabase)
+      -SyncGroupName $(SyncGroupName)
+    azurePowerShellVersion: 'LatestVersion'
+    pwsh: true
