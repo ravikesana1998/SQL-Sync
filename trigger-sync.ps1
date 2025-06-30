@@ -1,11 +1,12 @@
 param(
-    [string]$ResourceGroupName = "rg-23-6",
-    [string]$ServerName = "studentserver9",
-    [string]$DatabaseName = "studentDB1",
-    [string]$SyncGroupName = "StudentSyncGroup"
+    [string]$ResourceGroupName,
+    [string]$ServerName,
+    [string]$DatabaseName,
+    [string]$SyncGroupName
 )
 
-Write-Host "⚙️ Triggering Azure SQL Data Sync..."
+Write-Host "🚀 Triggering sync for group '$SyncGroupName' in database '$DatabaseName'..."
+
 try {
     Start-AzSqlSyncGroupSync `
         -ResourceGroupName $ResourceGroupName `
@@ -16,6 +17,6 @@ try {
     Write-Host "✅ Sync triggered successfully."
 }
 catch {
-    Write-Error "❌ Failed to trigger sync: $_"
+    Write-Error "❌ Sync trigger failed: $_"
     exit 1
 }
