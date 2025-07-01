@@ -1,4 +1,3 @@
-# scripts/setup-sql-sync.ps1
 param(
     [string]$ResourceGroupName,
     [string]$ServerName,
@@ -8,16 +7,62 @@ param(
     [int]$SyncIntervalSeconds = 300
 )
 
-$syncMemberName = "Member-$MemberDatabase"
-$securePassword = ConvertTo-SecureString "Shree@123" -AsPlainText -Force
-$cred = New-Object System.Management.Automation.PSCredential ("ram", $securePassword)
+Write-Host "🔐 Setting up Azure SQL Data Sync..."
 
-if (-not (Get-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -Name $SyncGroupName -ErrorAction SilentlyContinue)) {
-    New-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -Name $SyncGroupName -ConflictResolutionPolicy HubWin -IntervalInSeconds $SyncIntervalSeconds
-}
+# Set credentials
+$memberUsername = "ram"
+$memberPassword = ConvertTo-SecureString "Shree@123" -AsPlainText -Force
+$memberCredential = New-Object System.Management.Automation.PSCredential ($memberUsername, $memberPassword)
 
-if (-not (Get-AzSqlSyncMember -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -SyncGroupName $SyncGroupName -Name $syncMemberName -ErrorAction SilentlyContinue)) {
-    New-AzSqlSyncMember -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -SyncGroupName $SyncGroupName -SyncMemberName $syncMemberName -MemberServerName "$ServerName.database.windows.net" -MemberDatabaseName $MemberDatabase -MemberDatabaseCredential $cred -SyncDirection OneWayHubToMember
+# Create Sync Group if not exists
+$existingGroup = Get-AzSqlSyncGroup `
+    -ResourceGroupName $ResourceGroupName `
+    -ServerName $ServerName `
+    -DatabaseName $HubDatabase `
+    -Name $SyncGroupName -ErrorAction SilentlyContinue
+
+if (-not $existingGroup) {
+    Write-Host "🆕 Creating Sync Group: $SyncGroupName"
+
+    New-AzSqlSyncGroup `
+        -ResourceGroupName $ResourceGroupName `
+        -ServerName $ServerName `
+        -DatabaseName $HubDatabase `
+        -Name $SyncGroupName `
+        -ConflictResolutionPolicy "HubWin" `
+        -IntervalInSeconds $SyncIntervalSeconds `
+        -SyncDatabaseName $HubDatabase `
+        -SyncDatabaseServerName $ServerName `
+        -SyncDatabaseResourceGroupName $ResourceGroupName
 } else {
-    Write-Host "✅ Sync Member already exists."
+    Write-Host "✅ Sync Group '$SyncGroupName' already exists."
 }
+
+# Add Sync Member if not exists
+$syncMemberName = "Member-$MemberDatabase"
+$existingMember = Get-AzSqlSyncMember `
+    -ResourceGroupName $ResourceGroupName `
+    -ServerName $ServerName `
+    -DatabaseName $HubDatabase `
+    -SyncGroupName $SyncGroupName `
+    -Name $syncMemberName -ErrorAction SilentlyContinue
+
+if (-not $existingMember) {
+    Write-Host "➕ Adding Sync Member: $MemberDatabase"
+
+    New-AzSqlSyncMember `
+        -ResourceGroupName $ResourceGroupName `
+        -ServerName $ServerName `
+        -DatabaseName $HubDatabase `
+        -SyncGroupName $SyncGroupName `
+        -SyncMemberName $syncMemberName `
+        -MemberServerName "$ServerName.database.windows.net" `
+        -MemberDatabaseName $MemberDatabase `
+        -MemberDatabaseType "AzureSqlDatabase" `
+        -MemberDatabaseCredential $memberCredential `
+        -SyncDirection "OneWayHubToMember"
+} else {
+    Write-Host "✅ Sync Member '$MemberDatabase' already exists."
+}
+
+Write-Host "✅ SQL Data Sync setup complete."
