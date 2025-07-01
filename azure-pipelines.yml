@@ -20,7 +20,7 @@ steps:
   displayName: 'Setup SQL Data Sync'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'scripts/setup-sql-sync.ps1'
+    ScriptPath: 'setup-sql-sync.ps1'
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
@@ -35,7 +35,7 @@ steps:
   displayName: 'Generate FK Table Order'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'scripts/generate-sync-order.ps1'
+    ScriptPath: 'generate-sync-order.ps1'
     ScriptArguments: >
       -ServerName $(ServerName)
       -DatabaseName $(HubDatabase)
@@ -65,7 +65,7 @@ steps:
   displayName: 'Trigger Sync'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'scripts/trigger-sync.ps1'
+    ScriptPath: 'trigger-sync.ps1'
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
