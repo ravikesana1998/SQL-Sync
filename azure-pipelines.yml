@@ -53,7 +53,7 @@ steps:
   displayName: 'Register FK-Aware Sync Tables'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'scripts/register-tables-by-order.ps1'
+    ScriptPath: 'register-tables-by-order.ps1'
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
