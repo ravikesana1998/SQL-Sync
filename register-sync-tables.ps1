@@ -1,103 +1,95 @@
-# register-sync-tables.ps1
-
 param(
-    [string]$ResourceGroupName = "rg-23-6",
-    [string]$ServerName = "studentserver9",
-    [string]$HubDatabase = "studentsdb1",
-    [string]$MemberDatabase = "studentdb2",
-    [string]$SyncGroupName = "StudentSyncGroup",
-    [int]$SyncIntervalSeconds = 300
+    [string]$ResourceGroupName,
+    [string]$ServerName,
+    [string]$HubDatabase,
+    [string]$MemberDatabase,
+    [string]$SyncGroupName
 )
 
-Write-Host "🔐 Setting up Azure context..."
+# Ensure Az.Sql is loaded
+Import-Module Az.Sql -Force
 
-# Set credentials for member DB
-$memberDbUsername = "ram"
-$memberDbPassword = ConvertTo-SecureString "Shree@123" -AsPlainText -Force
-$memberCredential = New-Object System.Management.Automation.PSCredential ($memberDbUsername, $memberDbPassword)
+# SQL auth for querying metadata
+$SqlConnectionString = "Server=$ServerName.database.windows.net;Database=$HubDatabase;User ID=ram;Password=Shree@123;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
 
-# Create sync group if not exists
-$existingGroup = Get-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -Name $SyncGroupName -ErrorAction SilentlyContinue
-if (-not $existingGroup) {
-    Write-Host "🆕 Creating Sync Group: $SyncGroupName"
-    New-AzSqlSyncGroup `
-        -ResourceGroupName $ResourceGroupName `
-        -ServerName $ServerName `
-        -DatabaseName $HubDatabase `
-        -Name $SyncGroupName `
-        -ConflictResolutionPolicy HubWin `
-        -IntervalInSeconds $SyncIntervalSeconds `
-        -UsePrivateLinkConnection $false `
-        -SchemaTrackingEnabled $false
-} else {
-    Write-Host "✅ Sync Group $SyncGroupName already exists."
-}
+# Get FK-aware dependency order
+function Get-TableDependencyOrder {
+    $query = @"
+    WITH FK_Dependencies AS (
+        SELECT DISTINCT
+            FK_Table = fk_tab.name,
+            PK_Table = pk_tab.name
+        FROM sys.foreign_keys fk
+        JOIN sys.tables fk_tab ON fk.parent_object_id = fk_tab.object_id
+        JOIN sys.tables pk_tab ON fk.referenced_object_id = pk_tab.object_id
+    )
+    SELECT name
+    FROM sys.tables
+    ORDER BY 
+        (SELECT COUNT(*) 
+         FROM FK_Dependencies d 
+         WHERE d.FK_Table = t.name) ASC
+FROM sys.tables t
+"@
 
-# Add sync member if not exists
-$syncMemberName = "Member-$MemberDatabase"
-$existingMember = Get-AzSqlSyncMember -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -SyncGroupName $SyncGroupName -Name $syncMemberName -ErrorAction SilentlyContinue
+    $conn = New-Object System.Data.SqlClient.SqlConnection $SqlConnectionString
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = $query
+    $conn.Open()
+    $reader = $cmd.ExecuteReader()
 
-if (-not $existingMember) {
-    Write-Host "➕ Adding Sync Member: $MemberDatabase"
-    New-AzSqlSyncMember `
-        -ResourceGroupName $ResourceGroupName `
-        -ServerName $ServerName `
-        -DatabaseName $HubDatabase `
-        -SyncGroupName $SyncGroupName `
-        -SyncMemberName $syncMemberName `
-        -MemberServerName "$ServerName.database.windows.net" `
-        -MemberDatabaseName $MemberDatabase `
-        -MemberDatabaseType "AzureSqlDatabase" `
-        -MemberDatabaseCredential $memberCredential `
-        -SyncDirection "OneWayHubToMember"
-} else {
-    Write-Host "✅ Sync Member $MemberDatabase already exists."
-}
-
-# 🔄 Schema discovery happens automatically; wait a moment
-Write-Host "🔄 Waiting briefly to allow schema refresh..."
-Start-Sleep -Seconds 10
-
-# 📋 Display discovered tables and columns
-Write-Host "`n📋 Verifying registered tables in Sync Group..."
-$registeredSchema = Get-AzSqlSyncSchema `
-    -ResourceGroupName $ResourceGroupName `
-    -ServerName $ServerName `
-    -DatabaseName $HubDatabase `
-    -SyncGroupName $SyncGroupName `
-    -SyncMemberName $syncMemberName
-
-foreach ($tbl in $registeredSchema.Tables) {
-    Write-Host "🗂️ Table: $($tbl.QuotedName)"
-    foreach ($col in $tbl.Columns) {
-        Write-Host "   ➤ Column: $($col.QuotedName)"
+    $tableList = @()
+    while ($reader.Read()) {
+        $tableList += $reader["name"]
     }
+
+    $conn.Close()
+    return $tableList
 }
 
-# 🔁 Trigger sync if sync group is in a good state
-$groupStatus = Get-AzSqlSyncGroup `
-    -ResourceGroupName $ResourceGroupName `
-    -ServerName $ServerName `
-    -DatabaseName $HubDatabase `
-    -Name $SyncGroupName
+$tableOrder = Get-TableDependencyOrder
 
-if ($groupStatus.SyncState -eq "Good" -or $groupStatus.SyncState -eq "Ready") {
-    Write-Host "🚀 Triggering sync for group '$SyncGroupName' in database '$HubDatabase'..."
+if (-not $tableOrder -or $tableOrder.Count -eq 0) {
+    Write-Warning "⚠️ No tables found to register. Aborting registration."
+    exit 0
+}
 
+$syncMemberName = "Member-$MemberDatabase"
+
+foreach ($tableName in $tableOrder) {
     try {
-        $result = Start-AzSqlSyncGroupSync `
+        # Get column names for the table
+        $query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '$tableName'"
+        $conn = New-Object System.Data.SqlClient.SqlConnection $SqlConnectionString
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = $query
+        $conn.Open()
+        $reader = $cmd.ExecuteReader()
+        $columns = @()
+        while ($reader.Read()) {
+            $columns += $reader["COLUMN_NAME"]
+        }
+        $conn.Close()
+
+        if ($columns.Count -eq 0) {
+            Write-Warning "⚠️ Skipping $tableName: No columns found."
+            continue
+        }
+
+        # Register the table
+        New-AzSqlSyncMemberSchemaTable `
             -ResourceGroupName $ResourceGroupName `
             -ServerName $ServerName `
             -DatabaseName $HubDatabase `
-            -SyncGroupName $SyncGroupName
+            -SyncGroupName $SyncGroupName `
+            -SyncMemberName $syncMemberName `
+            -SchemaName "dbo" `
+            -TableName $tableName `
+            -Columns $columns
 
-        Write-Host "✅ Sync triggered successfully."
-    }
-    catch {
-        Write-Error "❌ Sync trigger failed: $($_.Exception.Message)"
-        exit 1
-    }
+        Write-Host "✅ Registered table: $tableName"
 
-} else {
-    Write-Warning "⚠️ Sync Group is not in an active state (current state: $($groupStatus.SyncState)). Sync not triggered."
+    } catch {
+        Write-Warning "❌ Failed to register table $tableName: $($_.Exception.Message)"
+    }
 }
