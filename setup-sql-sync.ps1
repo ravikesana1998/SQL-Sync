@@ -48,7 +48,7 @@ if (-not $existingMember) {
         -MemberServerName "$ServerName.database.windows.net" `
         -MemberDatabaseName $MemberDatabase `
         -DatabaseType "AzureSqlDatabase" `
-        -SyncDirection "ToMember" `
+         -SyncDirection "OneWayHubToMember" `
         -MemberDatabaseCredential $cred
 } else {
     Write-Host "✅ Sync Member $MemberDatabase already exists."
