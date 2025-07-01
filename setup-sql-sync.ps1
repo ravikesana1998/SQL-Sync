@@ -56,12 +56,13 @@ if (-not $existingMember) {
 
 # Refresh schema
 Write-Host "🔄 Refreshing sync schema..."
-Start-AzSqlSyncSchemaRefresh `
+Invoke-AzSqlSyncSchemaRefresh `
     -ResourceGroupName $ResourceGroupName `
     -ServerName $ServerName `
     -DatabaseName $HubDatabase `
     -SyncGroupName $SyncGroupName `
-    -SyncMemberName $syncMemberName
+    -SyncMemberName "Member-$MemberDatabase"
+
 
 Start-Sleep -Seconds 10
 
