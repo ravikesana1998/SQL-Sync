@@ -1,9 +1,11 @@
 param (
-    [string]$SqlServerName = "studentserver9.database.windows.net",
-    [string]$DatabaseName = "studentsdb1",
-    [string]$Username = "ram",
-    [string]$Password = "Shree@123"
+    [string]$SqlServerName,
+    [string]$DatabaseName,
+    [string]$Username,
+    [string]$Password,
+    [string]$OutputFile = "./sync-table-order.txt"
 )
+
 
 # Load required .NET assembly
 Add-Type -AssemblyName System.Data
