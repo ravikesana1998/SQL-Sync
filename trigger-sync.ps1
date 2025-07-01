@@ -1,4 +1,4 @@
- trigger-sync.ps1
+# trigger-sync.ps1
 
 param(
     [string]$ResourceGroupName,
