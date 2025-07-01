@@ -12,12 +12,13 @@ variables:
   MemberDatabase: 'studentdb2'
 
 steps:
-# 🔹 Setup SQL Data Sync (create sync group + member)
+
+# 🔹 Step 1: Setup SQL Data Sync Group & Member
 - task: AzurePowerShell@5
   displayName: 'Setup SQL Data Sync'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'scripts/setup-and-trigger-sync.ps1'  # <-- Update this
+    ScriptPath: 'setup-sql-sync.ps1'
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
@@ -27,12 +28,27 @@ steps:
     azurePowerShellVersion: 'LatestVersion'
     pwsh: true
 
-# (Optional) Trigger Sync
+# 🔹 Step 2: Register tables for sync
+- task: AzurePowerShell@5
+  displayName: 'Register Sync Tables'
+  inputs:
+    azureSubscription: 'DevopsServiceConnection'
+    ScriptPath: 'register-sync-tables.ps1'
+    ScriptArguments: >
+      -ResourceGroupName $(ResourceGroupName)
+      -ServerName $(ServerName)
+      -HubDatabase $(HubDatabase)
+      -MemberDatabase $(MemberDatabase)
+      -SyncGroupName $(SyncGroupName)
+    azurePowerShellVersion: 'LatestVersion'
+    pwsh: true
+
+# 🔁 Step 3: Trigger Sync
 - task: AzurePowerShell@5
   displayName: 'Trigger Sync'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'scripts/trigger-sync.ps1'  # <-- Update this
+    ScriptPath: 'trigger-sync.ps1'
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
