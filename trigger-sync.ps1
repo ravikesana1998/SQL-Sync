@@ -22,9 +22,11 @@ Write-Host "[ℹ️] Sync Group ProvisioningState: $($syncGroup.ProvisioningStat
 Write-Host "[ℹ️] Sync Group SyncState: $($syncGroup.SyncState)"
 
 # ❌ Validate that the sync group is fully ready before triggering
-if ($syncGroup.ProvisioningState -ne "Succeeded") {
-    throw "❌ Sync Group provisioning is not completed. State: $($syncGroup.ProvisioningState)"
+if (-not $syncGroup.ProvisioningState -or $syncGroup.ProvisioningState -ne "Succeeded") {
+    $stateText = if ($syncGroup.ProvisioningState) { $syncGroup.ProvisioningState } else { "NULL or empty" }
+    throw "❌ Sync Group provisioning is not completed. State: $stateText"
 }
+
 
 if ($validStates -notcontains $syncGroup.SyncState) {
     throw "❌ Sync Group is not in a valid sync state. Current state: $($syncGroup.SyncState)"
