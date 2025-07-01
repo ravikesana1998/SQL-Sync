@@ -7,9 +7,9 @@ pool:
 variables:
   ResourceGroupName: 'rg-23-6'
   ServerName: 'studentserver9'
-  HubDatabase: 'studentDB1'
+  HubDatabase: 'studentsdb1'
   SyncGroupName: 'StudentSyncGroup'
-  MemberDatabase: 'studentDB2'
+  MemberDatabase: 'studentdb2'
 
 steps:
 # 🔹 Setup SQL Data Sync (create sync group + member)
