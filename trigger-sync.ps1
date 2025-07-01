@@ -20,8 +20,10 @@ $syncGroup = Get-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName `
                                 -DatabaseName $DatabaseName `
                                 -SyncGroupName $SyncGroupName
 
-ThrowIf ($syncGroup.ProvisioningState -ne "Succeeded" -or $syncGroup.SyncState -ne "Ready") `
+$validStates = @("Ready", "Good")
+ThrowIf ($syncGroup.ProvisioningState -ne "Succeeded" -or ($validStates -notcontains $syncGroup.SyncState)) `
     "⚠️ Sync Group '$SyncGroupName' is not in a valid state: $($syncGroup.SyncState)"
+
 
 # 2. Check if member has tables registered
 $members = Get-AzSqlSyncMember -ResourceGroupName $ResourceGroupName `
