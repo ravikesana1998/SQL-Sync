@@ -1,8 +1,8 @@
 param(
     [string]$ResourceGroupName = "rg-23-6",
     [string]$ServerName = "studentserver9",
-    [string]$HubDatabase = "studentDB1",
-    [string]$MemberDatabase = "studentDB2",
+    [string]$HubDatabase = "studentsdb1",
+    [string]$MemberDatabase = "studentdb2",
     [string]$SyncGroupName = "StudentSyncGroup",
     [int]$SyncIntervalSeconds = 300  # 5 mins
 )
