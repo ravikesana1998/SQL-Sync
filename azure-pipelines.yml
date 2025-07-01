@@ -17,7 +17,7 @@ steps:
   displayName: 'Setup SQL Data Sync'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'setup-and-trigger-sync.ps1'
+    ScriptPath: 'scripts/setup-and-trigger-sync.ps1'  # <-- Update this
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
@@ -32,7 +32,7 @@ steps:
   displayName: 'Trigger Sync'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'trigger-sync.ps1'
+    ScriptPath: 'scripts/trigger-sync.ps1'  # <-- Update this
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
