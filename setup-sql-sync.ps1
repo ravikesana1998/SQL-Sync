@@ -1,3 +1,5 @@
+# setup-sql-sync.ps1
+
 param(
     [string]$ResourceGroupName = "rg-23-6",
     [string]$ServerName = "studentserver9",
