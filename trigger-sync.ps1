@@ -19,13 +19,22 @@ try {
     }
 
     # Check if any tables are registered
-    $members = Get-AzSqlSyncMember -ResourceGroupName $ResourceGroupName `
-                                   -ServerName $ServerName `
-                                   -DatabaseName $DatabaseName `
-                                   -SyncGroupName $SyncGroupName
+$syncMemberName = "Member-studentdb2"
+$schema = Get-AzSqlSyncSchema `
+    -ResourceGroupName $ResourceGroupName `
+    -ServerName $ServerName `
+    -DatabaseName $DatabaseName `
+    -SyncGroupName $SyncGroupName `
+    -SyncMemberName $syncMemberName
+
 
     foreach ($member in $members) {
-        Write-Host "🔄 Checking schema for member '$($member.Name)'..."
+    if (-not $member.Name) {
+        Write-Warning "⚠️ Skipping sync member with no name."
+        continue
+    }
+
+    Write-Host "🔄 Checking schema for member '$($member.Name)'..."
         $schema = Get-AzSqlSyncSchema -ResourceGroupName $ResourceGroupName `
                                       -ServerName $ServerName `
                                       -DatabaseName $DatabaseName `
