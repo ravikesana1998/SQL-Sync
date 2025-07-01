@@ -9,8 +9,11 @@ param(
 
 Write-Host "🔐 Setting up Azure context..."
 
-# Create Sync Group if it doesn't exist
-$existingGroup = Get-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -Name $SyncGroupName -ErrorAction SilentlyContinue
+# 1️⃣ Create Sync Group if not exists
+$existingGroup = Get-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName `
+                                    -ServerName $ServerName `
+                                    -DatabaseName $HubDatabase `
+                                    -Name $SyncGroupName -ErrorAction SilentlyContinue
 
 if (-not $existingGroup) {
     Write-Host "🆕 Creating Sync Group: $SyncGroupName"
@@ -20,17 +23,18 @@ if (-not $existingGroup) {
         -DatabaseName $HubDatabase `
         -Name $SyncGroupName `
         -ConflictResolutionPolicy "HubWin" `
-        -IntervalInSeconds $SyncIntervalSeconds `
-        -SyncDatabaseName $HubDatabase `
-        -SyncDatabaseServerName $ServerName `
-        -SyncDatabaseResourceGroupName $ResourceGroupName
+        -IntervalInSeconds $SyncIntervalSeconds
 } else {
     Write-Host "✅ Sync Group $SyncGroupName already exists."
 }
 
-# Create Sync Member if it doesn't exist
+# 2️⃣ Add Sync Member if not exists
 $syncMemberName = "Member-$MemberDatabase"
-$existingMember = Get-AzSqlSyncMember -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -SyncGroupName $SyncGroupName -Name $syncMemberName -ErrorAction SilentlyContinue
+$existingMember = Get-AzSqlSyncMember -ResourceGroupName $ResourceGroupName `
+                                      -ServerName $ServerName `
+                                      -DatabaseName $HubDatabase `
+                                      -SyncGroupName $SyncGroupName `
+                                      -Name $syncMemberName -ErrorAction SilentlyContinue
 
 if (-not $existingMember) {
     Write-Host "➕ Adding Sync Member: $MemberDatabase"
@@ -47,26 +51,24 @@ if (-not $existingMember) {
         -SyncMemberName $syncMemberName `
         -MemberServerName "$ServerName.database.windows.net" `
         -MemberDatabaseName $MemberDatabase `
-    -MemberDatabaseType "AzureSqlDatabase" `
-         -SyncDirection "OneWayHubToMember" `
+        -SyncDirection "OneWayHubToMember" `
         -MemberDatabaseCredential $cred
 } else {
     Write-Host "✅ Sync Member $MemberDatabase already exists."
 }
 
-# Refresh schema
+# 3️⃣ Refresh schema
 Write-Host "🔄 Refreshing sync schema..."
-Invoke-AzSqlSyncSchemaRefresh `
+Update-AzSqlSyncSchema `
     -ResourceGroupName $ResourceGroupName `
     -ServerName $ServerName `
     -DatabaseName $HubDatabase `
     -SyncGroupName $SyncGroupName `
-    -SyncMemberName "Member-$MemberDatabase"
-
+    -SyncMemberName $syncMemberName
 
 Start-Sleep -Seconds 10
 
-# Register specific tables
+# 4️⃣ Register tables to sync
 $tablesToRegister = @(
     @{ Schema = "dbo"; Name = "Courses"; Columns = @("CourseID", "CourseName", "DeptID") },
     @{ Schema = "dbo"; Name = "Departments"; Columns = @("DeptID", "DeptName") },
@@ -89,17 +91,4 @@ foreach ($table in $tablesToRegister) {
     } catch {
         Write-Warning "⚠️ Failed to register table $($table.Name): $($_.Exception.Message)"
     }
-}
-
-# Trigger sync if ready
-$groupStatus = Get-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -Name $SyncGroupName
-if ($groupStatus.SyncState -in @("Good", "Ready")) {
-    Write-Host "🚀 Triggering sync for group '$SyncGroupName' in database '$HubDatabase'..."
-    Start-AzSqlSyncGroupSync `
-        -ResourceGroupName $ResourceGroupName `
-        -ServerName $ServerName `
-        -DatabaseName $HubDatabase `
-        -Name $SyncGroupName
-} else {
-    Write-Warning "⚠️ Sync Group is not in an active state: $($groupStatus.SyncState). Sync not triggered."
 }
