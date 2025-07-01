@@ -1,5 +1,3 @@
-#  trigger-sync.ps1
-
 param(
     [string]$ResourceGroupName,
     [string]$ServerName,
@@ -7,59 +5,64 @@ param(
     [string]$SyncGroupName
 )
 
-try {
-    Write-Host "🔍 Checking sync group '$SyncGroupName'..."
+function Write-Log {
+    param([string]$Message)
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $Message"
+}
 
-    $syncGroup = Get-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName `
-                                    -ServerName $ServerName `
-                                    -DatabaseName $DatabaseName `
-                                    -Name $SyncGroupName `
-                                    -ErrorAction Stop
+try {
+    Write-Log "🔍 Checking sync group '$SyncGroupName' on DB '$DatabaseName'..."
+
+    $syncGroup = Get-AzSqlSyncGroup `
+        -ResourceGroupName $ResourceGroupName `
+        -ServerName $ServerName `
+        -DatabaseName $DatabaseName `
+        -Name $SyncGroupName -ErrorAction Stop
 
     if (-not $syncGroup) {
-        throw "❌ Sync group '$SyncGroupName' not found in database '$DatabaseName'."
+        throw "❌ Sync Group '$SyncGroupName' not found in database '$DatabaseName'."
     }
 
-    # Check if any tables are registered
-$syncMemberName = "Member-studentdb2"
-$schema = Get-AzSqlSyncSchema `
-    -ResourceGroupName $ResourceGroupName `
-    -ServerName $ServerName `
-    -DatabaseName $DatabaseName `
-    -SyncGroupName $SyncGroupName `
-    -SyncMemberName $syncMemberName
+    if ($syncGroup.SyncState -notin @("Ready", "Good")) {
+        throw "⚠️ Sync Group '$SyncGroupName' is not in a valid state: $($syncGroup.SyncState)."
+    }
 
+    Write-Log "🧪 Verifying schema is registered for all members..."
+
+    $members = Get-AzSqlSyncMember `
+        -ResourceGroupName $ResourceGroupName `
+        -ServerName $ServerName `
+        -DatabaseName $DatabaseName `
+        -SyncGroupName $SyncGroupName
 
     foreach ($member in $members) {
-    if (-not $member.Name) {
-        Write-Warning "⚠️ Skipping sync member with no name."
-        continue
-    }
+        $schema = Get-AzSqlSyncSchema `
+            -ResourceGroupName $ResourceGroupName `
+            -ServerName $ServerName `
+            -DatabaseName $DatabaseName `
+            -SyncGroupName $SyncGroupName `
+            -SyncMemberName $member.Name `
+            -ErrorAction SilentlyContinue
 
-    Write-Host "🔄 Checking schema for member '$($member.Name)'..."
-        $schema = Get-AzSqlSyncSchema -ResourceGroupName $ResourceGroupName `
-                                      -ServerName $ServerName `
-                                      -DatabaseName $DatabaseName `
-                                      -SyncGroupName $SyncGroupName `
-                                      -SyncMemberName $member.Name `
-                                      -ErrorAction SilentlyContinue
-
-        if ($schema -and $schema.Count -gt 0) {
-            Write-Host "✅ Schema is active with $($schema.Count) table(s) for '$($member.Name)'."
-        } else {
-            throw "❌ No schema/tables found for sync member '$($member.Name)'. Cannot trigger sync."
+        if (-not $schema -or $schema.Tables.Count -eq 0) {
+            throw "❌ No tables registered for sync member '$($member.Name)'. Cannot trigger sync."
         }
+
+        Write-Log "✅ Member '$($member.Name)' has $($schema.Tables.Count) table(s) registered."
     }
 
-    Write-Host "🚀 Triggering sync for group '$SyncGroupName' in database '$DatabaseName'..."
-    Start-AzSqlSyncGroupSync -ResourceGroupName $ResourceGroupName `
-                             -ServerName $ServerName `
-                             -DatabaseName $DatabaseName `
-                             -Name $SyncGroupName
+    Write-Log "🚀 Triggering sync for group '$SyncGroupName'..."
 
-    Write-Host "✅ Sync triggered successfully."
+    $operation = Start-AzSqlSyncGroupSync `
+        -ResourceGroupName $ResourceGroupName `
+        -ServerName $ServerName `
+        -DatabaseName $DatabaseName `
+        -SyncGroupName $SyncGroupName `
+        -ErrorAction Stop
 
-} catch {
+    Write-Log "✅ Sync triggered successfully. Operation ID: $($operation.SyncGroupLogId)"
+}
+catch {
     Write-Error "❌ Sync trigger failed: $($_.Exception.Message)"
     exit 1
 }
