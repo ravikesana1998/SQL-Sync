@@ -72,7 +72,14 @@ function TopoSort {
 $orderedTables = TopoSort -Edges $edges
 
 # Save output to file (for next pipeline steps to consume)
-$outputFile = "$(Build.ArtifactStagingDirectory)/sync-table-order.txt"
+param (
+    [string]$SqlServerName = "studentserver9.database.windows.net",
+    [string]$DatabaseName = "studentsdb1",
+    [string]$Username = "ram",
+    [string]$Password = "Shree@123",
+    [string]$OutputFile = "./sync-table-order.txt"
+)
+
 $orderedTables | Out-File -FilePath $outputFile -Encoding UTF8
 Write-Host "✅ FK table sync order saved to: $outputFile"
 
