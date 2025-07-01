@@ -37,12 +37,14 @@ steps:
     azureSubscription: 'DevopsServiceConnection'
     ScriptPath: 'generate-sync-order.ps1'
     ScriptArguments: >
-      -ServerName $(ServerName)
-      -DatabaseName $(HubDatabase)
-      -SqlUsername $(SqlUser)
-      -SqlPassword $(SqlPassword)
+      -SqlServerName "$(ServerName).database.windows.net"
+      -DatabaseName "$(HubDatabase)"
+      -Username "ram"
+      -Password "Shree@123"
+      -OutputFile "$(Pipeline.Workspace)/sync-table-order.txt"
     azurePowerShellVersion: 'LatestVersion'
     pwsh: true
+
 
 # 🔹 Step 3: Register Tables in FK Order
 - task: AzurePowerShell@5
