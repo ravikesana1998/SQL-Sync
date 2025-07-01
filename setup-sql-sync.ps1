@@ -47,7 +47,7 @@ if (-not $existingMember) {
         -SyncMemberName $syncMemberName `
         -MemberServerName "$ServerName.database.windows.net" `
         -MemberDatabaseName $MemberDatabase `
-        -DatabaseType "AzureSqlDatabase" `
+    -MemberDatabaseType "AzureSqlDatabase" `
          -SyncDirection "OneWayHubToMember" `
         -MemberDatabaseCredential $cred
 } else {
