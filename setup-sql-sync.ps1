@@ -21,7 +21,7 @@ if (-not $existingGroup) {
         -Name $SyncGroupName `
         -ConflictResolutionPolicy "HubWin" `
         -IntervalInSeconds $SyncIntervalSeconds `
-        -UsePrivateLinkConnection $false
+       
 } else {
     Write-Host "✅ Sync Group $SyncGroupName already exists."
 }
