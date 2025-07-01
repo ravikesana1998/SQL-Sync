@@ -10,6 +10,8 @@ variables:
   HubDatabase: 'studentsdb1'
   SyncGroupName: 'StudentSyncGroup'
   MemberDatabase: 'studentdb2'
+  SqlUser: 'ram'
+  SqlPassword: 'Shree@123'
 
 steps:
 
@@ -18,7 +20,7 @@ steps:
   displayName: 'Setup SQL Data Sync'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'setup-sql-sync.ps1'
+    ScriptPath: 'scripts/setup-sql-sync.ps1'
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
@@ -28,27 +30,42 @@ steps:
     azurePowerShellVersion: 'LatestVersion'
     pwsh: true
 
-# 🔹 Step 2: Register tables for sync
+# 🔹 Step 2: Generate FK-Aware Sync Order
 - task: AzurePowerShell@5
-  displayName: 'Register Sync Tables'
+  displayName: 'Generate FK Table Order'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'register-sync-tables.ps1'
+    ScriptPath: 'scripts/generate-sync-order.ps1'
+    ScriptArguments: >
+      -ServerName $(ServerName)
+      -DatabaseName $(HubDatabase)
+      -SqlUsername $(SqlUser)
+      -SqlPassword $(SqlPassword)
+    azurePowerShellVersion: 'LatestVersion'
+    pwsh: true
+
+# 🔹 Step 3: Register Tables in FK Order
+- task: AzurePowerShell@5
+  displayName: 'Register FK-Aware Sync Tables'
+  inputs:
+    azureSubscription: 'DevopsServiceConnection'
+    ScriptPath: 'scripts/register-tables-by-order.ps1'
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
       -HubDatabase $(HubDatabase)
-      -MemberDatabase $(MemberDatabase)
       -SyncGroupName $(SyncGroupName)
+      -SyncMemberName Member-$(MemberDatabase)
+      -TableListPath "./sync-table-order.txt"
     azurePowerShellVersion: 'LatestVersion'
     pwsh: true
 
-# 🔁 Step 3: Trigger Sync
+# 🔁 Step 4: Trigger Sync
 - task: AzurePowerShell@5
   displayName: 'Trigger Sync'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'trigger-sync.ps1'
+    ScriptPath: 'scripts/trigger-sync.ps1'
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
