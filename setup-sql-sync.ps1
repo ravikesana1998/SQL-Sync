@@ -4,13 +4,12 @@ param(
     [string]$HubDatabase = "studentsdb1",
     [string]$MemberDatabase = "studentdb2",
     [string]$SyncGroupName = "StudentSyncGroup",
-    [int]$SyncIntervalSeconds = 300  # 5 mins
+    [int]$SyncIntervalSeconds = 300
 )
 
-# Authenticate using DevOps service connection context
 Write-Host "🔐 Setting up Azure context..."
 
-# Create Sync Group if not exists
+# Create Sync Group
 $existingGroup = Get-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -Name $SyncGroupName -ErrorAction SilentlyContinue
 
 if (-not $existingGroup) {
@@ -22,31 +21,32 @@ if (-not $existingGroup) {
         -Name $SyncGroupName `
         -ConflictResolutionPolicy "HubWin" `
         -IntervalInSeconds $SyncIntervalSeconds `
-        -SchemaTrackingEnabled $true
+        -UsePrivateLinkConnection $false
 } else {
     Write-Host "✅ Sync Group $SyncGroupName already exists."
 }
 
-# Add member database
+# Add Sync Member
 $existingMember = Get-AzSqlSyncMember -ResourceGroupName $ResourceGroupName -ServerName $ServerName -DatabaseName $HubDatabase -SyncGroupName $SyncGroupName -Name "Member-$MemberDatabase" -ErrorAction SilentlyContinue
 
 if (-not $existingMember) {
     Write-Host "➕ Adding Sync Member: $MemberDatabase"
 
-New-AzSqlSyncGroup `
-    -ResourceGroupName $ResourceGroupName `
-    -ServerName $ServerName `
-    -DatabaseName $HubDatabase `
-    -Name $SyncGroupName `
-    -ConflictResolutionPolicy HubWin `
-    -IntervalInSeconds $SyncIntervalSeconds `
-    -UsePrivateLinkConnection $false
+    $username = "ram"
+    $password = ConvertTo-SecureString "Shree@123" -AsPlainText -Force
+    $cred = New-Object System.Management.Automation.PSCredential ($username, $password)
+
+    New-AzSqlSyncMember `
+        -ResourceGroupName $ResourceGroupName `
+        -ServerName $ServerName `
+        -DatabaseName $HubDatabase `
+        -SyncGroupName $SyncGroupName `
         -SyncMemberName "Member-$MemberDatabase" `
+        -MemberServerName "$ServerName.database.windows.net" `
         -MemberDatabaseName $MemberDatabase `
-        -MemberServerName $ServerName `
         -DatabaseType "AzureSqlDatabase" `
         -SyncDirection "ToMember" `
-        -UsePrivateLinkConnection $false
+        -MemberDatabaseCredential $cred
 } else {
     Write-Host "✅ Sync Member $MemberDatabase already exists."
 }
