@@ -33,11 +33,14 @@ $existingMember = Get-AzSqlSyncMember -ResourceGroupName $ResourceGroupName -Ser
 if (-not $existingMember) {
     Write-Host "➕ Adding Sync Member: $MemberDatabase"
 
-    New-AzSqlSyncMember `
-        -ResourceGroupName $ResourceGroupName `
-        -ServerName $ServerName `
-        -DatabaseName $HubDatabase `
-        -SyncGroupName $SyncGroupName `
+New-AzSqlSyncGroup `
+    -ResourceGroupName $ResourceGroupName `
+    -ServerName $ServerName `
+    -DatabaseName $HubDatabase `
+    -Name $SyncGroupName `
+    -ConflictResolutionPolicy HubWin `
+    -IntervalInSeconds $SyncIntervalSeconds `
+    -UsePrivateLinkConnection $false
         -SyncMemberName "Member-$MemberDatabase" `
         -MemberDatabaseName $MemberDatabase `
         -MemberServerName $ServerName `
