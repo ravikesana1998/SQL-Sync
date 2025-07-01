@@ -32,18 +32,20 @@ steps:
 
 # 🔹 Step 2: Generate FK-Aware Sync Order
 - task: AzurePowerShell@5
-  displayName: 'Generate FK Table Order'
+  displayName: 'Register FK-Aware Sync Tables'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'generate-sync-order.ps1'
+    ScriptPath: 'register-tables-by-order.ps1'
     ScriptArguments: >
-      -SqlServerName "$(ServerName).database.windows.net"
-      -DatabaseName "$(HubDatabase)"
-      -Username "ram"
-      -Password "Shree@123"
-      -OutputFile "$(Pipeline.Workspace)/sync-table-order.txt"
+      -ResourceGroupName $(ResourceGroupName)
+      -ServerName $(ServerName)
+      -HubDatabase $(HubDatabase)
+      -SyncGroupName $(SyncGroupName)
+      -SyncMemberName $(MemberDatabase)
+      -TableListPath 'sync-table-order.txt'
     azurePowerShellVersion: 'LatestVersion'
     pwsh: true
+
 
 
 # 🔹 Step 3: Register Tables in FK Order
