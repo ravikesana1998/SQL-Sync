@@ -1,17 +1,22 @@
 trigger:
-- main
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - '**'  # Trigger on any file/folder change in the repo
 
 pool:
   name: 'self-hosted-pool'
 
 variables:
-  ResourceGroupName: 'rg-23-6'
-  ServerName: 'studentserver9'
-  HubDatabase: 'studentsdb1'
+  ResourceGroupName: 'DB-RG'
+  ServerName: 'studentserver3'
   SyncGroupName: 'StudentSyncGroup'
-  MemberDatabase: 'studentdb2'
-  SqlUser: 'ram'
-  SqlPassword: 'Shree@123'
+  HubDatabase: 'studentDB2'         # ✅ Updated
+  MemberDatabase: 'studentDB1'      # ✅ Updated
+  SqlUser: 'student'
+  SqlPassword: 'class@123'
 
 steps:
 
@@ -19,7 +24,7 @@ steps:
 - task: AzurePowerShell@5
   displayName: 'Setup SQL Data Sync'
   inputs:
-    azureSubscription: 'DevopsServiceConnection'
+    azureSubscription: 'DevopsConnectionTOazure'
     ScriptPath: 'setup-sql-sync.ps1'
     ScriptArguments: >
       -ResourceGroupName $(ResourceGroupName)
@@ -32,21 +37,18 @@ steps:
 
 # 🔹 Step 2: Generate FK-Aware Sync Order
 - task: AzurePowerShell@5
-  displayName: 'Register FK-Aware Sync Tables'
+  displayName: 'Generate FK-Aware Table Order'
   inputs:
     azureSubscription: 'DevopsServiceConnection'
-    ScriptPath: 'register-tables-by-order.ps1'
+    ScriptPath: 'generate-sync-order.ps1'
     ScriptArguments: >
-      -ResourceGroupName $(ResourceGroupName)
       -ServerName $(ServerName)
-      -HubDatabase $(HubDatabase)
-      -SyncGroupName $(SyncGroupName)
-      -SyncMemberName $(MemberDatabase)
-      -TableListPath 'sync-table-order.txt'
+      -DatabaseName $(HubDatabase)
+      -SqlUser $(SqlUser)
+      -SqlPassword $(SqlPassword)
+      -OutputFile 'sync-table-order.txt'
     azurePowerShellVersion: 'LatestVersion'
     pwsh: true
-
-
 
 # 🔹 Step 3: Register Tables in FK Order
 - task: AzurePowerShell@5
