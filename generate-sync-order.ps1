@@ -1,24 +1,32 @@
-# param
+# Parameters
 param (
-    [string]$ServerName,       # ✅ Match the YAML
+    [string]$ServerName,
     [string]$DatabaseName,
     [string]$Username,
     [string]$Password,
     [string]$OutputFile
 )
 
+Write-Host "🔐 Connecting to SQL: $ServerName..."
 
-Write-Host "🔐 Connecting to SQL: $SqlServerName..."
+# Build connection string
+$connectionString = "Server=tcp:$ServerName,1433;Initial Catalog=$DatabaseName;Persist Security Info=False;User ID=$Username;Password=$Password;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+Write-Host "📡 Connection string: $connectionString"
 
-$connectionString = "Server=tcp:$SqlServerName,1433;Initial Catalog=$DatabaseName;Persist Security Info=False;User ID=$Username;Password=$Password;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
-
+# Attempt to connect
 $connection = New-Object System.Data.SqlClient.SqlConnection
 $connection.ConnectionString = $connectionString
-$connection.Open()
 
-Write-Host "✅ Connected to SQL. Scanning foreign keys..."
+try {
+    $connection.Open()
+    Write-Host "✅ Connected to SQL. Scanning foreign keys..."
+}
+catch {
+    Write-Error "❌ Failed to connect to SQL Server. $_"
+    exit 1
+}
 
-# Query to get FK relationships
+# Query foreign key relationships
 $query = @"
 SELECT 
     fk.name AS ForeignKeyName,
@@ -44,7 +52,7 @@ $reader.Close()
 
 $tables = $edges.From + $edges.To | Sort-Object -Unique
 
-# Topological Sort
+# Perform topological sort
 function TopoSort($edges, $allNodes) {
     $graph = @{}
     $inDegree = @{}
@@ -82,10 +90,10 @@ function TopoSort($edges, $allNodes) {
 
 $sortedTables = TopoSort -edges $edges -allNodes $tables
 
-# Write output
+# Output
 $OutputFile = $OutputFile.Trim()
-Write-Host "📝 Writing sync order to: $OutputFile"
+Write-Host "📝 Writing FK-aware sync order to: $OutputFile"
 Set-Content -Path $OutputFile -Value ($sortedTables -join "`n")
 
 $connection.Close()
-Write-Host "✅ FK-aware sync order generated."
+Write-Host "🏁 Script completed successfully."
