@@ -1,10 +1,11 @@
 param (
-    [string]$SqlServerName,
+    [string]$ServerName,       # ✅ Match the YAML
     [string]$DatabaseName,
     [string]$Username,
     [string]$Password,
     [string]$OutputFile
 )
+
 
 Write-Host "🔐 Connecting to SQL: $SqlServerName..."
 
