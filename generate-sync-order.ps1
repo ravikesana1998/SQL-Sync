@@ -1,3 +1,4 @@
+# param
 param (
     [string]$ServerName,       # ✅ Match the YAML
     [string]$DatabaseName,
