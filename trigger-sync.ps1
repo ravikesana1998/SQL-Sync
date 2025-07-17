@@ -8,28 +8,35 @@ param (
 # Import Az module if not already imported
 Import-Module Az.Sql -Force -ErrorAction Stop
 
-Write-Host "[🔍] Retrieving sync group '$SyncGroupName' on database '$DatabaseName'..."
+Write-Host "[🔍] Checking sync group '$SyncGroupName' on database '$DatabaseName'..."
 
-$syncGroup = Get-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName `
-                                -ServerName $ServerName `
-                                -DatabaseName $DatabaseName `
-                                -Name $SyncGroupName
+# Retry logic in case sync group is not yet ready
+$maxRetries = 10
+$retryDelay = 30 # seconds
+$attempt = 0
 
-# ✅ Define valid states
-$validStates = @("Ready", "Good")
+do {
+    $syncGroup = Get-AzSqlSyncGroup -ResourceGroupName $ResourceGroupName `
+                                    -ServerName $ServerName `
+                                    -DatabaseName $DatabaseName `
+                                    -Name $SyncGroupName
 
-Write-Host "[ℹ️] Sync Group ProvisioningState: $($syncGroup.ProvisioningState)"
-Write-Host "[ℹ️] Sync Group SyncState: $($syncGroup.SyncState)"
+    $provisioningState = $syncGroup.ProvisioningState
+    $syncState = $syncGroup.SyncState
 
-# ❌ Validate that the sync group is fully ready before triggering
-if (-not $syncGroup.ProvisioningState -or $syncGroup.ProvisioningState -ne "Good") {
-    $stateText = if ($syncGroup.ProvisioningState) { $syncGroup.ProvisioningState } else { "NULL or empty" }
-    throw "❌ Sync Group provisioning is not completed. State: $stateText"
-}
+    Write-Host "[🔁] Attempt $($attempt + 1): ProvisioningState = $provisioningState, SyncState = $syncState"
 
+    if ($provisioningState -eq "Succeeded" -and $syncState -ne "NotReady") {
+        Write-Host "[✅] Sync Group is ready."
+        break
+    }
 
-if ($validStates -notcontains $syncGroup.SyncState) {
-    throw "❌ Sync Group is not in a valid sync state. Current state: $($syncGroup.SyncState)"
+    Start-Sleep -Seconds $retryDelay
+    $attempt++
+} while ($attempt -lt $maxRetries)
+
+if ($provisioningState -ne "Succeeded" -or $syncState -eq "NotReady") {
+    throw "❌ Sync Group is not ready. Final state: $provisioningState / $syncState"
 }
 
 # ✅ Ensure tables are registered
