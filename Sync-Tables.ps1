@@ -1,63 +1,47 @@
-param(
+param (
     [string]$ResourceGroupName,
     [string]$ServerName,
     [string]$SyncGroupName,
     [string]$HubDatabase,
     [string]$MemberDatabase,
-    [string]$SqlUser,
-    [string]$SqlPassword
+    [string]$TablesList = "EmployeeDetails,DepartmentBudget,CustomerContact"
 )
 
-# === Authenticate with Azure REST ===
-$token = (Get-AzAccessToken).Token
+# Get access token
+$token = (az account get-access-token --query accessToken -o tsv)
 $headers = @{
     "Authorization" = "Bearer $token"
     "Content-Type"  = "application/json"
 }
 
-# === Table list to sync ===
-$tablesToSync = @("EmployeeDetails", "DepartmentBudget", "CustomerContact")
+# Base URL
+$subscriptionId = $env:AZURE_SUBSCRIPTION_ID
+$baseUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Sql/servers/$ServerName/databases/$HubDatabase/syncGroups/$SyncGroupName"
 
-foreach ($table in $tablesToSync) {
-    Write-Host "`n🔄 Syncing table: $table"
+# Split tables
+$tables = $TablesList -split ','
 
-    # === Get columns from hub database ===
-    $connectionString = "Server=tcp:$ServerName.database.windows.net,1433;Initial Catalog=$HubDatabase;Persist Security Info=False;User ID=$SqlUser;Password=$SqlPassword;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
-    $query = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '$table'"
+foreach ($tableName in $tables) {
+    Write-Host "`n⏳ Syncing table: $tableName"
 
-    $columns = Invoke-Sqlcmd -ConnectionString $connectionString -Query $query | Select-Object -ExpandProperty COLUMN_NAME
-
-    if (!$columns) {
-        Write-Warning "⚠️ Table $table not found or has no columns. Skipping."
-        continue
-    }
-
-    # === Construct sync schema payload ===
-    $columnList = @()
-    foreach ($col in $columns) {
-        $columnList += @{
-            name = $col
-        }
-    }
-
-    $schemaPayload = @{
+    # Construct table schema payload
+    $syncSchema = @{
         properties = @{
-            columns = $columnList
+            tables = @(@{
+                name = $tableName
+            })
         }
-    } | ConvertTo-Json -Depth 5
+    } | ConvertTo-Json -Depth 3
 
-    # === PUT schema to Azure Data Sync API ===
-    $syncTableUrl = "https://management.azure.com/subscriptions/$($env:AZURE_SUBSCRIPTION_ID)/resourceGroups/$ResourceGroupName/providers/Microsoft.Sql/servers/$ServerName/databases/$HubDatabase/syncGroups/$SyncGroupName/syncMembers/$MemberDatabase/tables/$table?api-version=2021-11-01-preview"
+    # Update schema
+    $schemaUrl = "$baseUrl/syncMembers/$MemberDatabase/syncSchema?api-version=2021-11-01-preview"
+    $updateSchemaResponse = Invoke-RestMethod -Method POST -Uri $schemaUrl -Headers $headers -Body $syncSchema
 
-    $putResp = Invoke-RestMethod -Method PUT -Uri $syncTableUrl -Headers $headers -Body $schemaPayload
+    Write-Host "✅ Updated schema for $tableName"
 
-    Write-Host "✅ Schema updated for: $table"
+    # Trigger sync
+    $syncUrl = "$baseUrl/syncMembers/$MemberDatabase/sync?api-version=2021-11-01-preview"
+    $syncResponse = Invoke-RestMethod -Method POST -Uri $syncUrl -Headers $headers
 
-    # === Trigger a manual sync ===
-    $triggerUrl = "https://management.azure.com/subscriptions/$($env:AZURE_SUBSCRIPTION_ID)/resourceGroups/$ResourceGroupName/providers/Microsoft.Sql/servers/$ServerName/databases/$HubDatabase/syncGroups/$SyncGroupName/syncMembers/$MemberDatabase/sync?api-version=2021-11-01-preview"
-
-    $syncResp = Invoke-RestMethod -Method POST -Uri $triggerUrl -Headers $headers
-    Write-Host "🚀 Sync triggered for: $table"
-
-    Start-Sleep -Seconds 10  # Optional delay between tables
+    Write-Host "🚀 Sync triggered for $tableName"
 }
